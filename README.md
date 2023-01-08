@@ -2,7 +2,10 @@
 
 Distributed reinforcement learning with communication for decentralized multi-agent pathfinding.
 
-![image](https://github.com/ZiyuanMa/DHC/blob/master/images/framework.png)
-![image](https://github.com/ZiyuanMa/DHC/blob/master/images/model.jpeg)
+Number of max train agents = 8
+Obstacle density = (0,0.4)
+Map range = (10,40)
+FOV = 3
+COMMUNICATION RANGE = Min{distance,5}
 
 

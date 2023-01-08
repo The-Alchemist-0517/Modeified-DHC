@@ -424,7 +424,7 @@ class Environment:
         self.last_actions = np.zeros((self.num_agents, 5, 2*self.obs_radius+1, 2*self.obs_radius+1), dtype=np.bool)
         self.last_actions[np.arange(self.num_agents), np.array(actions)] = 1
 
-        return self.observe(), rewards, done, info, stay_on_goal, num_collide
+        return self.observe(), rewards, done, info, stay_on_goal, num_collide,self.num_agents
 
 
     def observe(self):

@@ -12,7 +12,7 @@ from torch.optim.lr_scheduler import MultiStepLR
 from torch.cuda.amp import GradScaler
 import numpy as np
 from model import Network
-from environment import Environment
+from environment_1 import Environment
 from torch.utils.tensorboard import SummaryWriter
 from buffer import SumTree, LocalBuffer
 import configs
@@ -298,7 +298,7 @@ class Learner:
 
         while not ray.get(self.buffer.check_done.remote()) and self.counter < configs.training_times:
 
-            for i in range(1, 5001):
+            for i in range(1, 10001):
 
                 data_id = ray.get(self.buffer.get_data.remote())
                 data = ray.get(data_id)
@@ -351,8 +351,7 @@ class Learner:
                     torch.save(self.model.state_dict(), os.path.join(configs.save_path, '{}.pth'.format(self.counter)))
                 if i % configs.summary_window ==0:
                     writer = SummaryWriter('./path/to/log')
-                    writer.add_scalar('LOSS',loss)
-                    writer.add_scalar('TD-error', td_error)
+                    
 
 
 

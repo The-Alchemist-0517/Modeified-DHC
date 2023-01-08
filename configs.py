@@ -57,8 +57,8 @@ prioritized_replay_beta=0.4
 
 # curriculum learning
 init_env_settings = (1, 10)
-max_num_agents = 12
-max_map_lenght = 40
+max_num_agents = 8
+max_map_length = 40
 pass_rate = 0.9
 
 # dqn network setting
@@ -75,5 +75,5 @@ num_comm_heads = 2
 
 test_seed = 0
 num_test_cases = 100
-test_env_settings = ((10, 8, 0),(10, 8, 0.15),(10, 8, 0.3), (20, 16, 0), (20, 16, 0.15), (20, 16, 0.3),
-                   (30, 32, 0),(30, 32, 0.15), (30, 32, 0.3), (40, 64, 0),(40, 64, 0.15),(40, 64, 0.3),(40,128,0),(40,128,0.15),(40,128,0.3),(40,256,0),(40,256,0.15),(40,256,0.3)) # map length, number of agents, density
+test_env_settings = ((10, 8, 0), (10, 8, 0.15), (10, 8, 0.3), (20, 16, 0), (20, 16, 0.15),
+                    (20, 16, 0.3), (30, 32, 0), (30, 32, 0.15), (30, 32, 0.3), (30, 64, 0),(30, 64, 0.15),(30, 64, 0.3),(40, 128, 0),(40, 128, 0.15),(40, 128, 0.3)) # map length, number of agents, density

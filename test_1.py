@@ -15,7 +15,7 @@ import configs
 torch.manual_seed(configs.test_seed)
 np.random.seed(configs.test_seed)
 random.seed(configs.test_seed)
-test_num = 200
+test_num = 100
 device = torch.device('cpu')
 torch.set_num_threads(1)
 
@@ -156,33 +156,45 @@ def test_model(model_range: Union[int, tuple]):
                 ret = pool.map(test_one_case, tests)
 
                 success = 0
-                avg_step = 0
+                avg_step = 0#只考虑成功的情况
                 stay_1 =0
                 collide_1 = 0
                 avg_step_0 = 0
+                num_ag = 0
+                collide_rate = 0
 
                 max_on_goal=[]
-                collide_rate=[]
+                collide_2=[]
                 length=[]
+                length1=[]
 
 
-                for i, j,m,n,k in ret:
+                for i, j,m,n,k,o in ret:
                     success += i
                     avg_step += j
                     avg_step_0 +=k
                     stay_1 += m
                     collide_1 +=n
-                    length.append(j)
-                    max_on_goal.append(m)
-                    collide_rate.append(n)
+                    num_ag = o
+                    if k*o != 0:
+                        collide_rate = n/(k*o)
 
-                print("success rate: {:.2f}%".format(success / len(ret) * 100))
+                    if j !=0:
+                        length.append(j)
+                    length1.append(k)
+                    #print(length)
+                    max_on_goal.append(m)
+                    #print(max_on_goal)
+                    collide_2.append(collide_rate)
+                    #print(collide_2)
+
+                print("success rate: {:.2f}%".format(success))
                 if success > 0:
-                    print("average step: {}".format(avg_step/success))
+                    print("average step: {}".format(np.mean(length)))
                 print("std_average_step: {}".format(np.std(length,ddof=1)))
-                print("collide rate: {}".format(collide_1 /(avg_step_0)))
+                print("collide rate: {}".format(np.mean(collide_2)))
                 print("collide_sum: {}".format(collide_1))
-                print(("std_collide rate: {}".format(np.std(collide_rate,ddof=1))))
+                print(("std_collide rate: {}".format(np.std(collide_2,ddof=1))))
                 print("max_on_goal: {}".format(np.mean(max_on_goal)))
                 print("std_max_on_goal: {}".format(np.std(max_on_goal,ddof=1)))
 
@@ -203,107 +215,113 @@ def test_one_case(args):
     collide_sum = 0
     stay_all = []
     step_suc = 0
+    max_stay = 0
     #one_episode_perf = {'episode_len': 0, 'max_goals': 0, 'collide': 0, 'success_rate': 0}
     while not done and env.steps < configs.max_episode_length:
         actions, _, _, _ = network.step(torch.as_tensor(obs.astype(np.float32)), torch.as_tensor(pos.astype(np.float32)))
-        (obs, pos), _, done, _,stay, collide= env.step(actions)
+        (obs, pos), _, done, _,stay, collide,num= env.step(actions)
 
 
         step+=1
         collide_sum+=collide
         stay_all.append(stay)
         max_stay = max(stay_all)
+
+
     if step != 256:
         step_suc = step
+        max_stay = num
+    else:
+        step = 256
 
 
-    return np.array_equal(env.agents_pos, env.goals_pos), step_suc, max_stay,collide_sum,step
+    return np.array_equal(env.agents_pos, env.goals_pos), step_suc, max_stay,collide_sum,step,num
 
 
-def make_animation(model_name: int, test_set_name: tuple, test_case_idx: int, steps: int = 25):
-    '''
-    visualize running results
-    model_name: model number in 'models' file
-    test_set_name: (length, num_agents, density)
-    test_case_idx: int, the test case index in test set
-    steps: how many steps to visualize in test case
-    '''
-    color_map = np.array([[255, 255, 255],  # white
-                          [190, 190, 190],  # gray
-                          [0, 191, 255],  # blue
-                          [255, 165, 0],  # orange
-                          [0, 250, 154]])  # green
-
-    network = Network()
-    network.eval()
-    network.to(device)
-    state_dict = torch.load('models/{}.pth'.format(model_name), map_location=device)
-    network.load_state_dict(state_dict)
-
-    test_name = 'test_set/40length_64agents_0.3density.pth'
-    with open(test_name, 'rb') as f:
-        tests = pickle.load(f)
-
-    env = Environment()
-    env.load(tests[test_case_idx][0], tests[test_case_idx][1], tests[test_case_idx][2])
-
-    fig = plt.figure()
-
-    done = False
-    obs, pos = env.observe()
-
-    imgs = []
-    while not done and env.steps < steps:
-        imgs.append([])
-        map = np.copy(env.map)
-        for agent_id in range(env.num_agents):
-            if np.array_equal(env.agents_pos[agent_id], env.goals_pos[agent_id]):
-                map[tuple(env.agents_pos[agent_id])] = 4
-            else:
-                map[tuple(env.agents_pos[agent_id])] = 2
-                map[tuple(env.goals_pos[agent_id])] = 3
-        map = map.astype(np.uint8)
-
-        img = plt.imshow(color_map[map], animated=True)
-
-        imgs[-1].append(img)
-
-        for i, ((agent_x, agent_y), (goal_x, goal_y)) in enumerate(zip(env.agents_pos, env.goals_pos)):
-            text = plt.text(agent_y, agent_x, i, color='black', ha='center', va='center')
-            imgs[-1].append(text)
-            text = plt.text(goal_y, goal_x, i, color='black', ha='center', va='center')
-            imgs[-1].append(text)
-
-        actions, _, _, _ = network.step(torch.from_numpy(obs.astype(np.float32)).to(device), torch.from_numpy(pos.astype(np.float32)).to(device))
-        (obs, pos), _, done, _ = env.step(actions)
-        # print(done)
-
-    if done and env.steps < steps:
-        map = np.copy(env.map)
-        for agent_id in range(env.num_agents):
-            if np.array_equal(env.agents_pos[agent_id], env.goals_pos[agent_id]):
-                map[tuple(env.agents_pos[agent_id])] = 4
-            else:
-                map[tuple(env.agents_pos[agent_id])] = 2
-                map[tuple(env.goals_pos[agent_id])] = 3
-        map = map.astype(np.uint8)
-
-        img = plt.imshow(color_map[map], animated=True)
-        for _ in range(steps - env.steps):
-            imgs.append([])
-            imgs[-1].append(img)
-            for i, ((agent_x, agent_y), (goal_x, goal_y)) in enumerate(zip(env.agents_pos, env.goals_pos)):
-                text = plt.text(agent_y, agent_x, i, color='black', ha='center', va='center')
-                imgs[-1].append(text)
-                text = plt.text(goal_y, goal_x, i, color='black', ha='center', va='center')
-                imgs[-1].append(text)
-
-    ani = animation.ArtistAnimation(fig, imgs, interval=600, blit=True, repeat_delay=1000)
-
-    ani.save('videos/{}_{}_{}_{}.mp4'.format(model_name, *test_set_name))
+# def make_animation(model_name: int, test_set_name: tuple, test_case_idx: int, steps: int = 25):
+#     '''
+#     visualize running results
+#     model_name: model number in 'models' file
+#     test_set_name: (length, num_agents, density)
+#     test_case_idx: int, the test case index in test set
+#     steps: how many steps to visualize in test case
+#     '''
+#     color_map = np.array([[255, 255, 255],  # white
+#                           [190, 190, 190],  # gray
+#                           [0, 191, 255],  # blue
+#                           [255, 165, 0],  # orange
+#                           [0, 250, 154]])  # green
+#
+#     network = Network()
+#     network.eval()
+#     network.to(device)
+#     state_dict = torch.load('models/{}.pth'.format(model_name), map_location=device)
+#     network.load_state_dict(state_dict)
+#
+#     test_name = 'test_set/40length_64agents_0.3density.pth'
+#     with open(test_name, 'rb') as f:
+#         tests = pickle.load(f)
+#
+#     env = Environment()
+#     env.load(tests[test_case_idx][0], tests[test_case_idx][1], tests[test_case_idx][2])
+#
+#     fig = plt.figure()
+#
+#     done = False
+#     obs, pos = env.observe()
+#
+#     imgs = []
+#     while not done and env.steps < steps:
+#         imgs.append([])
+#         map = np.copy(env.map)
+#         for agent_id in range(env.num_agents):
+#             if np.array_equal(env.agents_pos[agent_id], env.goals_pos[agent_id]):
+#                 map[tuple(env.agents_pos[agent_id])] = 4
+#             else:
+#                 map[tuple(env.agents_pos[agent_id])] = 2
+#                 map[tuple(env.goals_pos[agent_id])] = 3
+#         map = map.astype(np.uint8)
+#
+#         img = plt.imshow(color_map[map], animated=True)
+#
+#         imgs[-1].append(img)
+#
+#         for i, ((agent_x, agent_y), (goal_x, goal_y)) in enumerate(zip(env.agents_pos, env.goals_pos)):
+#             text = plt.text(agent_y, agent_x, i, color='black', ha='center', va='center')
+#             imgs[-1].append(text)
+#             text = plt.text(goal_y, goal_x, i, color='black', ha='center', va='center')
+#             imgs[-1].append(text)
+#
+#         actions, _, _, _ = network.step(torch.from_numpy(obs.astype(np.float32)).to(device), torch.from_numpy(pos.astype(np.float32)).to(device))
+#         (obs, pos), _, done, _ = env.step(actions)
+#         # print(done)
+#
+#     if done and env.steps < steps:
+#         map = np.copy(env.map)
+#         for agent_id in range(env.num_agents):
+#             if np.array_equal(env.agents_pos[agent_id], env.goals_pos[agent_id]):
+#                 map[tuple(env.agents_pos[agent_id])] = 4
+#             else:
+#                 map[tuple(env.agents_pos[agent_id])] = 2
+#                 map[tuple(env.goals_pos[agent_id])] = 3
+#         map = map.astype(np.uint8)
+#
+#         img = plt.imshow(color_map[map], animated=True)
+#         for _ in range(steps - env.steps):
+#             imgs.append([])
+#             imgs[-1].append(img)
+#             for i, ((agent_x, agent_y), (goal_x, goal_y)) in enumerate(zip(env.agents_pos, env.goals_pos)):
+#                 text = plt.text(agent_y, agent_x, i, color='black', ha='center', va='center')
+#                 imgs[-1].append(text)
+#                 text = plt.text(goal_y, goal_x, i, color='black', ha='center', va='center')
+#                 imgs[-1].append(text)
+#
+#     ani = animation.ArtistAnimation(fig, imgs, interval=600, blit=True, repeat_delay=1000)
+#
+#     ani.save('videos/{}_{}_{}_{}.mp4'.format(model_name, *test_set_name))
 
 
 if __name__=='__main__':
     #create_test(test_env_settings=configs.test_env_settings, num_test_cases=configs.num_test_cases)
-    test_model((47000, 49000))
+    test_model((98000, 100000))
     # make_animation(596000, (40,64,0.3), 20, 25)
